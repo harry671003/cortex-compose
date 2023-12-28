@@ -1,0 +1,133 @@
+version: "3"
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.44.0
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - 9090:9090
+    depends_on:
+      - distributor
+    networks:
+      - cortex
+  
+  grafana:
+    image: grafana/grafana
+    ports:
+      - 3000:3000
+    volumes:
+      - ./grafana:/var/lib/grafana
+    networks:
+      - cortex
+
+  queryfrontend:
+    image: quay.io/cortexproject/cortex:latest
+    hostname: "{{.Service.Name}}_{{.Task.Slot}}"
+    volumes:
+      - ./cortex:/etc/cortex
+    entrypoint: [/etc/cortex/entrypoint.sh]
+    command:
+      - '-target=query-frontend'
+    environment:
+      HOSTNAME: "{{.Service.Name}}_{{.Task.Slot}}" 
+      SERVICE: "{{.Service.Name}}"
+      REPLICA: "{{.Task.Slot}}"
+    ports:
+      - 8001:8080
+    # networks:
+    #   - cortex
+
+  querier:
+    image: quay.io/cortexproject/cortex:latest
+    hostname: "{{.Service.Name}}_{{.Task.Slot}}"
+    volumes:
+      - ./cortex:/etc/cortex
+    ports:
+      - :8080
+    entrypoint: [/etc/cortex/entrypoint.sh]
+    command:
+      - '-target=querier'
+    environment:
+      HOSTNAME: "{{.Service.Name}}_{{.Task.Slot}}"
+      SERVICE: "{{.Service.Name}}"
+      REPLICA: "{{.Task.Slot}}"
+    deploy:
+      mode: replicated
+      replicas: 2
+    networks:
+      - cortex
+
+  store_gateway:
+    image: quay.io/cortexproject/cortex:latest
+    hostname: "{{.Service.Name}}_{{.Task.Slot}}"
+    volumes:
+      - ./cortex:/etc/cortex
+      - ./data:/data/
+    ports:
+      - :8080
+    entrypoint: [/etc/cortex/entrypoint.sh]
+    command:
+      - '-target=store-gateway'
+    environment:
+      HOSTNAME: "{{.Service.Name}}_{{.Task.Slot}}"
+      SERVICE: "{{.Service.Name}}"
+      REPLICA: "{{.Task.Slot}}"
+    deploy:
+      mode: replicated
+      replicas: 3
+    depends_on:
+      - distributor
+    networks:
+      - cortex
+
+  ingester:
+    image: quay.io/cortexproject/cortex:latest
+    hostname: "{{.Service.Name}}_{{.Task.Slot}}"
+    volumes:
+      - ./cortex:/etc/cortex
+      - ./data:/data/
+    ports:
+      - :8080
+    entrypoint: [/etc/cortex/entrypoint.sh]
+    command:
+      - '-target=ingester'
+    environment:
+      HOSTNAME: "{{.Service.Name}}_{{.Task.Slot}}"
+      SERVICE: "{{.Service.Name}}"
+      REPLICA: "{{.Task.Slot}}"
+    deploy:
+      mode: replicated
+      replicas: 6
+    depends_on:
+      - distributor
+    networks:
+      - cortex
+  
+
+  distributor:
+    image: quay.io/cortexproject/cortex:latest
+    hostname: "{{.Service.Name}}_{{.Task.Slot}}"
+    volumes:
+      - ./cortex:/etc/cortex
+    entrypoint: [/etc/cortex/entrypoint.sh]
+    command:
+      - '-target=distributor'
+    environment:
+      HOSTNAME: "{{.Service.Name}}_{{.Task.Slot}}"
+      SERVICE: "{{.Service.Name}}"
+      REPLICA: "{{.Task.Slot}}"
+    ports:
+      - 8000:8080
+    networks:
+      - cortex
+
+networks:
+  cortex:
+    name: cortex
+    internal: true
