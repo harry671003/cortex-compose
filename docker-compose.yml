@@ -43,13 +43,30 @@ services:
     networks:
       - cortex
 
+  queryscheduler:
+    image: quay.io/cortexproject/cortex:latest
+    hostname: "{{.Service.Name}}_{{.Task.Slot}}"
+    volumes:
+      - ./cortex:/etc/cortex
+    entrypoint: [/etc/cortex/entrypoint.sh]
+    command:
+      - '-target=query-scheduler'
+    environment:
+      HOSTNAME: "{{.Service.Name}}_{{.Task.Slot}}" 
+      SERVICE: "{{.Service.Name}}"
+      REPLICA: "{{.Task.Slot}}"
+    ports:
+      - 8003:8080
+    networks:
+      - cortex
+
   querier:
     image: quay.io/cortexproject/cortex:latest
     hostname: "{{.Service.Name}}_{{.Task.Slot}}"
     volumes:
       - ./cortex:/etc/cortex
     ports:
-      - :8080
+      - 8005:8080
     entrypoint: [/etc/cortex/entrypoint.sh]
     command:
       - '-target=querier'
@@ -70,7 +87,7 @@ services:
       - ./cortex:/etc/cortex
       - ./data:/data/
     ports:
-      - :8080
+      - 8006:8080
     entrypoint: [/etc/cortex/entrypoint.sh]
     command:
       - '-target=store-gateway'
@@ -93,7 +110,7 @@ services:
       - ./cortex:/etc/cortex
       - ./data:/data/
     ports:
-      - :8080
+      - 8002:8080
     entrypoint: [/etc/cortex/entrypoint.sh]
     command:
       - '-target=ingester'
@@ -103,7 +120,7 @@ services:
       REPLICA: "{{.Task.Slot}}"
     deploy:
       mode: replicated
-      replicas: 6
+      replicas: 3
     depends_on:
       - distributor
     networks:
@@ -141,10 +158,10 @@ services:
       SERVICE: "{{.Service.Name}}"
       REPLICA: "{{.Task.Slot}}"
     ports:
-      - 8002:8080
+      - :8080
     deploy:
       mode: replicated
-      replicas: 3
+      replicas: 2
     networks:
       - cortex
 
